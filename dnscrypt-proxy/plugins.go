@@ -237,14 +237,14 @@ func NewPluginsState(proxy *Proxy, clientProto string, clientAddr *net.Addr, sta
 		rejectTTL:                        proxy.rejectTTL,
 		questionMsg:                      nil,
 		qName:                            "",
+		serverName:                       "-",
 		requestStart:                     start,
 		maxUnencryptedUDPSafePayloadSize: MaxDNSUDPSafePacketSize,
 		sessionData:                      make(map[string]interface{}),
 	}
 }
 
-func (pluginsState *PluginsState) ApplyQueryPlugins(pluginsGlobals *PluginsGlobals, packet []byte, serverName string, needsEDNS0Padding bool) ([]byte, error) {
-	pluginsState.serverName = serverName
+func (pluginsState *PluginsState) ApplyQueryPlugins(pluginsGlobals *PluginsGlobals, packet []byte, needsEDNS0Padding bool) ([]byte, error) {
 	msg := dns.Msg{}
 	if err := msg.Unpack(packet); err != nil {
 		return packet, err

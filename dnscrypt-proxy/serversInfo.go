@@ -35,6 +35,11 @@ type ServerBugs struct {
 	incorrectPadding bool
 }
 
+type DOHClientCreds struct {
+	clientCert string
+	clientKey  string
+}
+
 type ServerInfo struct {
 	Proto              stamps.StampProtoType
 	MagicQuery         [8]byte
@@ -54,19 +59,44 @@ type ServerInfo struct {
 	rtt                ewma.MovingAverage
 	initialRtt         int
 	useGet             bool
+	DOHClientCreds     DOHClientCreds
 }
 
-type LBStrategy int
+type LBStrategy interface {
+	getCandidate(serversCount int) int
+}
 
-const (
-	LBStrategyNone = LBStrategy(iota)
-	LBStrategyP2
-	LBStrategyPH
-	LBStrategyFirst
-	LBStrategyRandom
-)
+type LBStrategyP2 struct{}
 
-const DefaultLBStrategy = LBStrategyP2
+func (LBStrategyP2) getCandidate(serversCount int) int {
+	return rand.Intn(Min(serversCount, 2))
+}
+
+type LBStrategyPN struct{ n int }
+
+func (s LBStrategyPN) getCandidate(serversCount int) int {
+	return rand.Intn(Min(serversCount, s.n))
+}
+
+type LBStrategyPH struct{}
+
+func (LBStrategyPH) getCandidate(serversCount int) int {
+	return rand.Intn(Max(Min(serversCount, 2), serversCount/2))
+}
+
+type LBStrategyFirst struct{}
+
+func (LBStrategyFirst) getCandidate(int) int {
+	return 0
+}
+
+type LBStrategyRandom struct{}
+
+func (LBStrategyRandom) getCandidate(serversCount int) int {
+	return rand.Intn(serversCount)
+}
+
+var DefaultLBStrategy = LBStrategyP2{}
 
 type ServersInfo struct {
 	sync.RWMutex
@@ -203,17 +233,7 @@ func (serversInfo *ServersInfo) getOne() *ServerInfo {
 	if serversInfo.lbEstimator {
 		serversInfo.estimatorUpdate()
 	}
-	var candidate int
-	switch serversInfo.lbStrategy {
-	case LBStrategyFirst:
-		candidate = 0
-	case LBStrategyPH:
-		candidate = rand.Intn(Max(Min(serversCount, 2), serversCount/2))
-	case LBStrategyRandom:
-		candidate = rand.Intn(serversCount)
-	default:
-		candidate = rand.Intn(Min(serversCount, 2))
-	}
+	candidate := serversInfo.lbStrategy.getCandidate(serversCount)
 	serverInfo := serversInfo.inner[candidate]
 	dlog.Debugf("Using candidate [%s] RTT: %d", (*serverInfo).Name, int((*serverInfo).rtt.Value()))
 	serversInfo.Unlock()
@@ -314,7 +334,10 @@ func fetchDNSCryptServerInfo(proxy *Proxy, name string, stamp stamps.ServerStamp
 	if err != nil {
 		return ServerInfo{}, err
 	}
-	certInfo, rtt, err := FetchCurrentDNSCryptCert(proxy, &name, proxy.mainProto, stamp.ServerPk, stamp.ServerAddrStr, stamp.ProviderName, isNew, relayUDPAddr, relayTCPAddr)
+	certInfo, rtt, fragmentsBlocked, err := FetchCurrentDNSCryptCert(proxy, &name, proxy.mainProto, stamp.ServerPk, stamp.ServerAddrStr, stamp.ProviderName, isNew, relayUDPAddr, relayTCPAddr, knownBugs)
+	if !knownBugs.incorrectPadding && fragmentsBlocked {
+		dlog.Debugf("[%v] drops fragmented queries", name)
+	}
 	if err != nil {
 		return ServerInfo{}, err
 	}
@@ -378,6 +401,15 @@ func fetchDoHServerInfo(proxy *Proxy, name string, stamp stamps.ServerStamp, isN
 		Path:   stamp.Path,
 	}
 	body := dohTestPacket(0xcafe)
+	dohClientCreds, ok := (*proxy.dohCreds)[name]
+	if !ok {
+		dohClientCreds, ok = (*proxy.dohCreds)["*"]
+	}
+	if ok {
+		dlog.Noticef("[%s] Cert: %s, Key: %s", name, dohClientCreds.clientCert, dohClientCreds.clientKey)
+		proxy.xTransport.tlsClientCreds = dohClientCreds
+		proxy.xTransport.rebuildTransport()
+	}
 	useGet := false
 	if _, _, _, err := proxy.xTransport.DoHQuery(useGet, url, body, proxy.timeout); err != nil {
 		useGet = true

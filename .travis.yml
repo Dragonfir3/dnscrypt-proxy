@@ -62,11 +62,18 @@ script:
   - tar czpvf dnscrypt-proxy-freebsd_amd64-${TRAVIS_TAG:-dev}.tar.gz freebsd-amd64
 
   - go clean
-  - env GOOS=freebsd GOARCH=arm go build -mod vendor -ldflags="-s -w"
+  - env GOOS=freebsd GOARCH=arm go GOARM=5 build -mod vendor -ldflags="-s -w"
   - mkdir freebsd-arm
   - ln dnscrypt-proxy freebsd-arm/
   - ln ../LICENSE example-dnscrypt-proxy.toml localhost.pem example-*.txt freebsd-arm/
   - tar czpvf dnscrypt-proxy-freebsd_arm-${TRAVIS_TAG:-dev}.tar.gz freebsd-arm
+
+  - go clean
+  - env GOOS=freebsd GOARCH=arm go GOARM=6 build -mod vendor -ldflags="-s -w"
+  - mkdir freebsd-armv6
+  - ln dnscrypt-proxy freebsd-armv6/
+  - ln ../LICENSE example-dnscrypt-proxy.toml localhost.pem example-*.txt freebsd-armv6/
+  - tar czpvf dnscrypt-proxy-freebsd_armv6-${TRAVIS_TAG:-dev}.tar.gz freebsd-armv6
 
   - go clean
   - env GOOS=freebsd GOARCH=arm GOARM=7 go build -mod vendor -ldflags="-s -w"
@@ -118,11 +125,18 @@ script:
   - tar czpvf dnscrypt-proxy-linux_x86_64-${TRAVIS_TAG:-dev}.tar.gz linux-x86_64
 
   - go clean
-  - env CGO_ENABLED=0 GOOS=linux GOARCH=arm go build -mod vendor -ldflags="-s -w"
+  - env CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=5 go build -mod vendor -ldflags="-s -w"
   - mkdir linux-arm
   - ln dnscrypt-proxy linux-arm/
   - ln ../LICENSE example-dnscrypt-proxy.toml localhost.pem example-*.txt linux-arm/
   - tar czpvf dnscrypt-proxy-linux_arm-${TRAVIS_TAG:-dev}.tar.gz linux-arm
+
+  - go clean
+  - env CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=6 go build -mod vendor -ldflags="-s -w"
+  - mkdir linux-armv6
+  - ln dnscrypt-proxy linux-armv6/
+  - ln ../LICENSE example-dnscrypt-proxy.toml localhost.pem example-*.txt linux-armv6/
+  - tar czpvf dnscrypt-proxy-linux_armv6-${TRAVIS_TAG:-dev}.tar.gz linux-armv6
 
   - go clean
   - env CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -mod vendor -ldflags="-s -w"
@@ -207,14 +221,13 @@ after_success:
 
 deploy:
   provider: releases
-  api_key:
+  token:
     secure: J3K/wo3oW/ySl6X4Zk5PX+EVy4fa0qa4fbpKNivogch5yjYw2pgrlSvwto9TM12Gxi4tTMKiWYK4YBapNf+tm501s4OyS1G1rJR1fZ+iyaHgGBLD+QppbivZt+P7Do56agSili68Zcgm7MQfZbvOq9z42z3AJ71+UNTJmTp63voaAuyOF/VdLsmJHMd/5nmFJH6mfMrgMs720GCWxFgdq3NRM2AdVldsp1YmNb4qKqIzunmfxqG9TqVlpq35tNOhWA/Ll3rbsiDVeUpBAW5ked/qHyGRkFVk44O6cPSFGe035Txx0JviBshGxsNSP+aJL9T55hIj1dmuk6g5uhPqABU/zcdJvXOv11oqJuV/DGHO31UfVN6u744LJY6Y1lkd+UUNiOJDPGC80+6M2GbP7BFMZiO5qnYkxzktnYg9b6zIPwmj96XZSniDTAn+qemJf2S8rzShvBtWX29Q4odIaCfFUY8i0muowQ4Vep5S5FqVG+r/rQTXOUIUsNv4r/gP/y5hdtOMC2r1VSvWk068upmW6ovCtcmTghSfYcLCG5r+g5OE2mKj9kbx6RQMspewk9+pvOhNZKXsn/AIvvDC4V46MaDjFkdYN0VbsYB5NH11DGCPH7vDwJnAzzMWnofCkiTG07dJYlLUnD9iUgYoNkrxivAgQKnDP8C6Ka0RGdk=
   file:
     - dnscrypt-proxy-*.tar.gz
     - dnscrypt-proxy-*.zip
     - dnscrypt-proxy-*.minisig
   file_glob: true
-  skip_cleanup: true
   on:
     repo: DNSCrypt/dnscrypt-proxy
     tags: true
